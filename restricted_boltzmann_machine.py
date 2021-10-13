@@ -24,10 +24,16 @@ class RBM:
     def __init__(self, input, n_visible=5, n_hidden=6, W=None, hbias=None, vbias=None) -> None:
         self.n_visible = n_visible
         self.n_hidden = n_hidden
-        self.input = input
+        self.num_examples = input.shape[0]
+
+        # Insert bias units of 1 into the first column.
+        self.input = np.insert(input, 0, 1, axis=1)
         if W is None:
             a = 1. / n_visible
-            init_W = np.random.uniform(low=-a, high=a, size=(n_visible, n_hidden))
+            init_W = np.random.uniform(low=-a, high=a, size=(n_hidden, n_visible))
+            # Insert weights for the bias units into the first row and first column.
+            init_W = np.insert(init_W, 0, 0, axis=0)
+            init_W = np.insert(init_W, 0, 0, axis=1)
             self.W = init_W
 
         if hbias is None:
@@ -44,40 +50,40 @@ class RBM:
 
     def forward(self, v):
         # print("Forward")
-        return self.sigmoid((v @ self.W) + self.hbias)
+        return self.sigmoid((v @ self.W.T) + self.hbias)
 
     def backward(self, h):
         # print("Backward")
         # print(h.shape)
         # print(self.W.shape)
-        return self.sigmoid((h @ self.W.T) + self.vbias)
+        return self.sigmoid((h @ self.W) + self.vbias)
 
     def contrastive_divergence(self, lr=0.1, k=1, input=None):
         if input is not None:
             self.input = input
         v_0 = self.input
-        h_, h_0 = self.sample_h_given_v(self.input)
+        ph_0, h_0 = self.sample_h_given_v(self.input)
         for step in range(k):
-            v_, v_k = self.sample_v_given_h(h_0)
-            h_, h_k = self.sample_h_given_v(v_k)
+            pv_k, v_k = self.sample_v_given_h(h_0)
+            ph_k, h_k = self.sample_h_given_v(v_k)
 
-        print(self.input.shape)
-        print(h_k.shape)
+        # print(self.input.shape)
+        # print(h_k.shape)
+        joint_pvh = ((v_0 @ ph_0) - (v_k @ ph_k)) / self.num_examples
+        self.W += lr * (joint_pvh)  # Division through feature count?
+        # self.vbias += lr * ((v_0 - pv_k) / self.num_examples).sum()
+        # self.hbias += lr * ((ph_0 - ph_k) / self.num_examples).sum()
 
-        self.W += lr * (v_0 @ h_0 - v_k @ h_k).sum(axis=0)  # Division through feature count?
-        self.vbias += lr * (v_0 - v_k).sum(axis=0)
-        self.hbias += lr * (h_0 - h_k).sum(axis=0)
+    def compute_reconstruction_cross_entropy(self):
+        ph = self.forward(self.input)
+        pv = self.backward(ph)
 
-    def compute_reconstruction_loss(self):
-        h_layer = self.forward(self.input)
-        v_layer = self.backward(h_layer)
-
-        binary_cross_entropy = -np.mean(np.sum(self.input * np.log(v_layer) + (1 - self.input) * np.log(1 - v_layer)))
+        binary_cross_entropy = -np.mean(np.sum(self.input * np.log(pv) + (1 - self.input) * np.log(1 - pv)))
 
         return binary_cross_entropy
 
-    def reconstruct(self):
-        reconstructed = self.backward(self.forward(self.input))
+    def reconstruct(self, v):
+        reconstructed = self.backward(self.forward(v))
         return reconstructed
 
     def pass_through(self, h):
@@ -92,13 +98,13 @@ class RBM:
 
     def sample_h_given_v(self, v):
         h_prob = self.forward(v)
-        # randoms = np.random.randn(*new_h.shape)
-        # sampled_h = new_h + randoms
+        h_prob[:, 0] = 1
         h_sampled = (np.random.uniform(size=h_prob.shape) > h_prob) * 1.0
         return [h_prob, h_sampled]
 
     def sample_v_given_h(self, h):
         v_prob = self.backward(h)
+        v_prob[:, 0] = 1
         v_sampled = np.random.binomial(
             size=v_prob.shape,  # discrete: binomial
             n=1,
@@ -117,12 +123,17 @@ def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
     # train
     for epoch in range(training_epochs):
         rbm.contrastive_divergence(lr=learning_rate, k=k)
-        cost = rbm.get_reconstruction_cross_entropy()
+        cost = rbm.compute_reconstruction_cross_entropy()
         print(f'Training epoch {epoch}, cost is {cost}')
 
     # test
     v = np.array([[0, 0, 0, 1, 1, 0], [1, 1, 0, 0, 0, 0]])
 
+    print("Data:")
+    print(data)
+    print("Test:")
+    print(v)
+    print("Reconstruction:")
     print(rbm.reconstruct(v))
 
 
