@@ -27,13 +27,11 @@ class RBM:
         self.num_examples = input.shape[0]
 
         # Insert bias units of 1 into the first column.
-        self.input = np.insert(input, 0, 1, axis=1)
+        # data = np.insert(data, 0, 1, axis = 1)
+        self.input = input
         if W is None:
             a = 1. / n_visible
-            init_W = np.random.uniform(low=-a, high=a, size=(n_hidden, n_visible))
-            # Insert weights for the bias units into the first row and first column.
-            init_W = np.insert(init_W, 0, 0, axis=0)
-            init_W = np.insert(init_W, 0, 0, axis=1)
+            init_W = np.random.uniform(low=-a, high=a, size=(n_visible, n_hidden))
             self.W = init_W
 
         if hbias is None:
@@ -50,13 +48,13 @@ class RBM:
 
     def forward(self, v):
         # print("Forward")
-        return self.sigmoid((v @ self.W.T) + self.hbias)
+        return self.sigmoid((v @ self.W) + self.hbias)
 
     def backward(self, h):
         # print("Backward")
         # print(h.shape)
         # print(self.W.shape)
-        return self.sigmoid((h @ self.W) + self.vbias)
+        return self.sigmoid((h @ self.W.T) + self.vbias)
 
     def contrastive_divergence(self, lr=0.1, k=1, input=None):
         if input is not None:
@@ -68,11 +66,16 @@ class RBM:
             ph_k, h_k = self.sample_h_given_v(v_k)
 
         # print(self.input.shape)
-        # print(h_k.shape)
-        joint_pvh = ((v_0 @ ph_0) - (v_k @ ph_k)) / self.num_examples
-        self.W += lr * (joint_pvh)  # Division through feature count?
-        # self.vbias += lr * ((v_0 - pv_k) / self.num_examples).sum()
-        # self.hbias += lr * ((ph_0 - ph_k) / self.num_examples).sum()
+        # print(v_0.shape)
+        # print(ph_0.shape)
+        # print(v_0.shape)
+        # print(pv_k.shape)
+
+        joint_p_vh = ((v_0.T @ ph_0) - (v_k.T @ ph_k)) / self.num_examples
+        self.W += lr * (joint_p_vh)  # Division through feature count?
+        self.vbias += lr * ((v_0 - pv_k).mean(axis=0))
+        self.hbias += lr * ((ph_0 - ph_k).mean(axis=0))
+
 
     def compute_reconstruction_cross_entropy(self):
         ph = self.forward(self.input)
@@ -98,13 +101,11 @@ class RBM:
 
     def sample_h_given_v(self, v):
         h_prob = self.forward(v)
-        h_prob[:, 0] = 1
         h_sampled = (np.random.uniform(size=h_prob.shape) > h_prob) * 1.0
         return [h_prob, h_sampled]
 
     def sample_v_given_h(self, h):
         v_prob = self.backward(h)
-        v_prob[:, 0] = 1
         v_sampled = np.random.binomial(
             size=v_prob.shape,  # discrete: binomial
             n=1,
@@ -115,10 +116,10 @@ class RBM:
 
 def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
     data = np.array([[1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0], [0, 0, 1, 1, 1, 0], [0, 0, 1, 1, 0, 0],
-                     [0, 0, 1, 1, 1, 0]])
+                     [0, 0, 1, 1, 1, 0], [1, 0, 1, 1, 0, 0]])
 
     # construct RBM
-    rbm = RBM(input=data, n_visible=6, n_hidden=2)
+    rbm = RBM(input=data, n_visible=6, n_hidden=3)
 
     # train
     for epoch in range(training_epochs):
@@ -134,7 +135,7 @@ def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
     print("Test:")
     print(v)
     print("Reconstruction:")
-    print(rbm.reconstruct(v))
+    print(rbm.reconstruct(v).round(decimals=2))
 
 
 test_rbm()
