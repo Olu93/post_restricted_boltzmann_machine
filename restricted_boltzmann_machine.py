@@ -21,11 +21,24 @@ ds
 # https://datascience.stackexchange.com/questions/30186/understanding-contrastive-divergence
 # https://www.edureka.co/blog/restricted-boltzmann-machine-tutorial/#training
 class RBM:
-    def __init__(self, input, n_visible=5, n_hidden=6, W=None, hbias=None, vbias=None) -> None:
+    def __init__(
+        self,
+        input,
+        n_visible=5,
+        n_hidden=6,
+        W=None,
+        hbias=None,
+        vbias=None,
+        lr=0.0001,
+        epochs=1000,
+        k=10,
+    ) -> None:
         self.n_visible = n_visible
         self.n_hidden = n_hidden
         self.num_examples = input.shape[0]
-
+        self.lr = lr
+        self.epochs = epochs
+        self.k = k
         # Insert bias units of 1 into the first column.
         # data = np.insert(data, 0, 1, axis = 1)
         self.input = input
@@ -46,66 +59,55 @@ class RBM:
         # print(x.shape)
         return (1 / (1 + np.exp(-x)))
 
-    def forward(self, v):
-        # print("Forward")
+    def ph_given_v(self, v):
         return self.sigmoid((v @ self.W) + self.hbias)
 
-    def backward(self, h):
-        # print("Backward")
-        # print(h.shape)
-        # print(self.W.shape)
+    def pv_given_h(self, h):
         return self.sigmoid((h @ self.W.T) + self.vbias)
 
     def contrastive_divergence(self, lr=0.1, k=1, input=None):
         if input is not None:
             self.input = input
         v_0 = self.input
-        ph_0, h_0 = self.sample_h_given_v(self.input)
+        ph_0, h_0 = self.sample_h_given_v(v_0)
+        h_k = h_0
         for step in range(k):
-            pv_k, v_k = self.sample_v_given_h(h_0)
+            pv_k, v_k = self.sample_v_given_h(h_k)
             ph_k, h_k = self.sample_h_given_v(v_k)
 
-        # print(self.input.shape)
-        # print(v_0.shape)
-        # print(ph_0.shape)
-        # print(v_0.shape)
-        # print(pv_k.shape)
-
-        joint_p_vh = ((v_0.T @ ph_0) - (v_k.T @ ph_k)) / self.num_examples
-        self.W += lr * (joint_p_vh)  # Division through feature count?
-        self.vbias += lr * ((v_0 - pv_k).mean(axis=0))
-        self.hbias += lr * ((ph_0 - ph_k).mean(axis=0))
-
+        joint_p_vh = ((v_0.T @ ph_0) - (pv_k.T @ ph_k)) / self.num_examples
+        self.W += lr * (joint_p_vh)
+        self.vbias += lr * ((v_0 - pv_k).sum(axis=0) / self.num_examples)
+        self.hbias += lr * ((ph_0 - ph_k).sum(axis=0) / self.num_examples)
 
     def compute_reconstruction_cross_entropy(self):
-        ph = self.forward(self.input)
-        pv = self.backward(ph)
+        ph = self.ph_given_v(self.input)
+        pv = self.pv_given_h(ph)
 
         binary_cross_entropy = -np.mean(np.sum(self.input * np.log(pv) + (1 - self.input) * np.log(1 - pv)))
 
         return binary_cross_entropy
 
     def reconstruct(self, v):
-        reconstructed = self.backward(self.forward(v))
+        ph, h = self.sample_h_given_v(v)
+        pv, v = self.sample_v_given_h(h)
+        reconstructed = v
         return reconstructed
 
-    def pass_through(self, h):
-        v_new, v_sample = self.sample_v_given_h(h)
-        h_new, h_sample = self.sample_h_given_v(v_sample)
-        return v_new, v_sample, h_new, h_sample
-
-    # def pass_through2(self, v):
-    #     h_new, h_sample = self.sample_h_given_v(v)
-    #     v_new, v_sample = self.sample_v_given_h(h)
-    #     return v_new, v_sample, h_new, h_sample
-
     def sample_h_given_v(self, v):
-        h_prob = self.forward(v)
-        h_sampled = (np.random.uniform(size=h_prob.shape) > h_prob) * 1.0
+        h_prob = self.ph_given_v(v)
+        h_sampled = (np.random.uniform(size=h_prob.shape) < h_prob) * 1.0
+        # print("SSSSSSSSSSSSSSSS")
+        # print(h_sampled)
+        # h_sampled = np.random.binomial(
+        #     size=h_prob.shape,  # discrete: binomial
+        #     n=1,
+        #     p=h_prob)
+        # print(h_sampled)
         return [h_prob, h_sampled]
 
     def sample_v_given_h(self, h):
-        v_prob = self.backward(h)
+        v_prob = self.pv_given_h(h)
         v_sampled = np.random.binomial(
             size=v_prob.shape,  # discrete: binomial
             n=1,
@@ -113,22 +115,26 @@ class RBM:
 
         return [v_prob, v_sampled]
 
+    def run_train_loop(self, epochs=None, lr=None, k=None):
+        for epoch in range(epochs or self.epochs):
+            self.contrastive_divergence(lr=lr or self.lr, k=k or self.k)
+            cost = self.compute_reconstruction_cross_entropy()
+            if (epoch % (epochs//10)) == 0:
+                print(f'Training epoch {epoch}, cost is {cost}')
 
-def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
+
+def test_rbm(lr=0.1, k=5, epochs=2000):
     data = np.array([[1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0], [0, 0, 1, 1, 1, 0], [0, 0, 1, 1, 0, 0],
                      [0, 0, 1, 1, 1, 0], [1, 0, 1, 1, 0, 0]])
 
     # construct RBM
-    rbm = RBM(input=data, n_visible=6, n_hidden=3)
+    rbm = RBM(input=data, n_visible=6, n_hidden=2)
 
     # train
-    for epoch in range(training_epochs):
-        rbm.contrastive_divergence(lr=learning_rate, k=k)
-        cost = rbm.compute_reconstruction_cross_entropy()
-        print(f'Training epoch {epoch}, cost is {cost}')
+    rbm.run_train_loop(epochs, lr, k)
 
     # test
-    v = np.array([[0, 0, 0, 1, 1, 0], [1, 1, 0, 0, 0, 0]])
+    v = np.array([[0, 0, 0, 1, 1, 0], [1, 1, 0, 0, 0, 0], [1, 1, 0, 0, 0, 1], [0, 0, 1, 0, 1, 0]])
 
     print("Data:")
     print(data)
@@ -136,7 +142,9 @@ def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
     print(v)
     print("Reconstruction:")
     print(rbm.reconstruct(v).round(decimals=2))
+    print("Reconstruction:")
+    print(rbm.reconstruct(v).round(decimals=2))
 
 
-test_rbm()
+test_rbm(epochs=3000)
 # %%
