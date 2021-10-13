@@ -101,7 +101,7 @@ class RBM:
 
     def sample_h_given_v(self, v):
         h_prob = self.forward(v)
-        h_sampled = (np.random.uniform(size=h_prob.shape) > h_prob) * 1.0
+        h_sampled = (np.random.uniform(size=h_prob.shape) < h_prob) * 1.0
         return [h_prob, h_sampled]
 
     def sample_v_given_h(self, h):
@@ -114,7 +114,7 @@ class RBM:
         return [v_prob, v_sampled]
 
 
-def test_rbm(learning_rate=0.1, k=1, training_epochs=1000):
+def test_rbm(learning_rate=0.1, k=1, training_epochs=2000):
     data = np.array([[1, 1, 1, 0, 0, 0], [1, 0, 1, 0, 0, 0], [1, 1, 1, 0, 0, 0], [0, 0, 1, 1, 1, 0], [0, 0, 1, 1, 0, 0],
                      [0, 0, 1, 1, 1, 0], [1, 0, 1, 1, 0, 0]])
 
