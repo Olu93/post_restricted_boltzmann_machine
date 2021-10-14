@@ -14,12 +14,6 @@ ds
 
 
 # %%
-# https://gist.github.com/yusugomori/4428308
-# https://towardsdatascience.com/restricted-boltzmann-machine-as-a-recommendation-system-for-movie-review-part-2-9a6cab91d85b
-# https://medium.com/machine-learning-researcher/boltzmann-machine-c2ce76d94da5
-# https://github.com/echen/restricted-boltzmann-machines/blob/master/rbm.py
-# https://datascience.stackexchange.com/questions/30186/understanding-contrastive-divergence
-# https://www.edureka.co/blog/restricted-boltzmann-machine-tutorial/#training
 class RBM:
     def __init__(
         self,
