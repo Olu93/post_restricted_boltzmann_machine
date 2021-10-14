@@ -3,7 +3,7 @@
 - [x] Implement basic version
 - [x] Read geoffrey hintons take 
 - [x] Implement debug functions
-- [ ] Implement functional version
+- [x] Implement functional version
 - [ ] Comment on code
 - [ ] Use on MNIST dataset
 - [ ] Add L2/L1 regularisation 
