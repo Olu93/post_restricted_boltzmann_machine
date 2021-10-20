@@ -99,9 +99,9 @@ class RBM:
         self.vbias += lr * ((pv_0 - pv_k).sum(axis=0) / num_examples)
         self.hbias += lr * ((ph_0 - ph_k).sum(axis=0) / num_examples)
 
-        self.collector_Ws.extend((lr * (joint_p_vh)).flatten())
-        self.collector_vs.extend((lr * ((pv_0 - pv_k).sum(axis=0) / num_examples)).flatten())
-        self.collector_hs.extend((lr * ((ph_0 - ph_k).sum(axis=0) / num_examples)).flatten())
+        # self.collector_Ws.extend((lr * (joint_p_vh)).flatten())
+        # self.collector_vs.extend((lr * ((pv_0 - pv_k).sum(axis=0) / num_examples)).flatten())
+        # self.collector_hs.extend((lr * ((ph_0 - ph_k).sum(axis=0) / num_examples)).flatten())
         self.collector_minibatch.append(ph_k)
 
     def compute_reconstruction_cross_entropy(self, batch):
@@ -189,13 +189,13 @@ class RBM:
 
         return samples.reshape((-1, 28, 28, 1))
 
-    def daydream2(self, num_samples=10):
+    def daydream2(self, num_samples=10, prob=0.5):
         # Create a matrix, where each row is to be a sample of of the visible units
         # (with an extra bias unit), initialized to all ones.
         samples = np.ones((num_samples, self.n_visible))
 
         # Take the first hidden sample from a uniform distribution.
-        hk = np.random.binomial(1, 0.5, (self.n_hidden))
+        hk = np.random.binomial(1, prob, (self.n_hidden))
 
         for i in range(0, num_samples):
             pv, vk = self.sample_v_given_h(hk)
@@ -258,8 +258,8 @@ class RBM:
 
         return Image(filename, width=600, height=600)
 
-    def plot_daydream2(self, num_samples=10, filename='./dream2.gif'):
-        dream = (self.daydream2(num_samples) * 255).astype(np.uint8)
+    def plot_daydream2(self, num_samples=10, filename='./dream2.gif', prob=0.5):
+        dream = (self.daydream2(num_samples, prob) * 255).astype(np.uint8)
         with imageio.get_writer(filename, mode='I') as writer:
             for data in dream:
                 writer.append_data(data)
@@ -267,7 +267,7 @@ class RBM:
         return Image(filename, width=600, height=600)
 
 
-rbm = RBM(input=train_data['image'], epochs=15, n_hidden=30, batch_size=16)
+rbm = RBM(input=train_data['image'], epochs=15, n_hidden=15, batch_size=16)
 # train
 rbm.run_train_loop(0.1, 10)
 # %%
@@ -283,4 +283,4 @@ rbm.plot_minibatch_probs()
 # %%
 rbm.plot_daydream(2000)
 # %%
-rbm.plot_daydream2(2000)
+rbm.plot_daydream2(2000, prob=0.25)
