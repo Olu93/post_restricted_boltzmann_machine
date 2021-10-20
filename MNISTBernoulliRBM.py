@@ -12,9 +12,9 @@ from IPython.display import Image, display
 # import tensorflow_datasets as tfds
 np.random.seed(42)
 dataset = load_dataset('mnist', split='train', streaming=0)
-ds = dataset.shuffle().train_test_split(test_size=0.75)
+ds = dataset.shuffle().train_test_split(test_size=0.8)
 train_data, val_data = ds['train'], ds['test']
-train_data 
+train_data
 
 # %%
 # ds = ds.shuffle(1024).batch(32).prefetch(tf.data.experimental.AUTOTUNE)
@@ -177,7 +177,7 @@ class RBM:
         # (with an extra bias unit), initialized to all ones.
         samples = np.ones((num_samples, self.n_visible))
 
-        # Take the first sample from a uniform distribution.
+        # Take the first visible sample from a uniform distribution.
         samples[0] = np.random.rand(self.n_visible)
 
         v = samples[0, :]
@@ -185,6 +185,21 @@ class RBM:
             v0 = samples[i - 1, :]
             ph_0, h_0 = self.sample_h_given_v(v0)
             pv, vk = self.sample_v_given_h(h_0)
+            samples[i, :] = vk
+
+        return samples.reshape((-1, 28, 28, 1))
+
+    def daydream2(self, num_samples=10):
+        # Create a matrix, where each row is to be a sample of of the visible units
+        # (with an extra bias unit), initialized to all ones.
+        samples = np.ones((num_samples, self.n_visible))
+
+        # Take the first hidden sample from a uniform distribution.
+        hk = np.random.binomial(1, 0.5, (self.n_hidden))
+
+        for i in range(0, num_samples):
+            pv, vk = self.sample_v_given_h(hk)
+            ph_0, hk = self.sample_h_given_v(vk)
             samples[i, :] = vk
 
         return samples.reshape((-1, 28, 28, 1))
@@ -241,7 +256,15 @@ class RBM:
             for data in dream:
                 writer.append_data(data)
 
-        return Image(filename)
+        return Image(filename, width=600, height=600)
+
+    def plot_daydream2(self, num_samples=10, filename='./dream2.gif'):
+        dream = (self.daydream2(num_samples) * 255).astype(np.uint8)
+        with imageio.get_writer(filename, mode='I') as writer:
+            for data in dream:
+                writer.append_data(data)
+
+        return Image(filename, width=600, height=600)
 
 
 rbm = RBM(input=train_data['image'], epochs=15, n_hidden=30, batch_size=16)
@@ -256,9 +279,8 @@ rbm.plot_all_reconstructions(1)
 # %%
 rbm.plot_all_reconstructions(2)
 # %%
-rbm.plot_daydream(1000)
-# %%
 rbm.plot_minibatch_probs()
 # %%
-# rbm.plot_histograms()
+rbm.plot_daydream(2000)
 # %%
+rbm.plot_daydream2(2000)
